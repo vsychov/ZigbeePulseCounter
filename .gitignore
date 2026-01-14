@@ -1,0 +1,6 @@
+build/
+.venv/
+managed_components/
+sdkconfig.old
+sdkconfig
+project_dump.txt

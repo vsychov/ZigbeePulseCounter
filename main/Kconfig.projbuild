@@ -1,0 +1,271 @@
+menu "Zigbee Pulse Meter"
+
+config PULSE_GPIO
+    int "Pulse input GPIO"
+    default 10
+    help
+        GPIO for dry contact input. Active low with internal pull-up.
+
+config PULSE_DEBOUNCE_MS
+    int "Debounce time (ms)"
+    default 50
+    help
+        Ignore pulses closer than this interval.
+
+config PULSE_PER_UNIT_NUMERATOR
+    int "Pulses per unit (numerator)"
+    default 10000
+    help
+        Number of pulses that represent one unit of consumption (kWh/m3/etc).
+
+config PULSE_MIN_WIDTH_MS
+    int "Minimum pulse width (ms)"
+    default 0
+    help
+        Optional minimum low time. 0 disables the check.
+
+config PULSE_GLITCH_FILTER_ENABLE
+    bool "Enable hardware GPIO glitch filter for pulse input"
+    default y
+    help
+        Enable the ESP32-H2 hardware flex glitch filter on the pulse GPIO.
+        This helps suppress very short bounce/noise spikes and reduces ISR storms / wakeups.
+
+config PULSE_GLITCH_FILTER_WINDOW_NS
+    int "Pulse glitch filter window width (ns)"
+    default 2000000
+    help
+        Window width in nanoseconds for the flex glitch filter.
+        Typical values: 500000..5000000 (0.5..5 ms). Tune with a scope.
+
+config PULSE_GLITCH_FILTER_THRES_NS
+    int "Pulse glitch filter threshold (ns)"
+    default 1000000
+    help
+        Threshold in nanoseconds for the flex glitch filter.
+        Pulses shorter than this are rejected. Must be <= WINDOW_NS in practice.
+
+config FACTORY_RESET_BUTTON_GPIO
+    int "Factory reset button GPIO"
+    default 11
+    help
+        Active-low button GPIO for factory reset via long press. Set to -1 to disable.
+
+config BATTERY_ADC_ENABLE
+    bool "Enable battery measurement"
+    default y
+
+config BATTERY_ADC_UNIT
+    int "ADC unit (1/2)"
+    default 1
+
+config BATTERY_ADC_CHANNEL
+    int "ADC channel (0-9)"
+    default 4
+    help
+        ADC channel for battery divider.
+
+config BATTERY_ADC_ATTEN
+    int "ADC attenuation (0/1/2/3 => 0/2.5/6/11 dB)"
+    default 0
+
+config BATTERY_RTOP_OHM
+    int "Battery divider Rtop (ohm)"
+    default 300000
+
+config BATTERY_RBOT_OHM
+    int "Battery divider Rbot (ohm)"
+    default 100000
+
+config BATTERY_EMPTY_MV
+    int "Battery empty (mV)"
+    default 2600
+
+config BATTERY_FULL_MV
+    int "Battery full (mV)"
+    default 3400
+
+config BATTERY_REPORT_HYST_PCT
+    int "Battery report hysteresis (percent)"
+    default 2
+    help
+        Minimum percent change before reporting battery percentage.
+
+config ZB_ENDPOINT
+    int "Zigbee endpoint"
+    default 1
+
+config ZB_DEVICE_ID
+    hex "Zigbee device ID"
+    default 0x7777
+
+config ZB_MANUFACTURER_CODE
+    hex "Manufacturer code"
+    default 0x1234
+
+config ZB_MFG_CLUSTER_ID
+    hex "Manufacturer-specific cluster ID"
+    default 0xFD10
+
+choice ZB_DEVICE_VARIANT
+    prompt "Device variant"
+    default ZB_VARIANT_GAS
+
+config ZB_VARIANT_GAS
+    bool "Gas (m3)"
+
+config ZB_VARIANT_WATER
+    bool "Water (m3)"
+
+config ZB_VARIANT_ELECTRIC
+    bool "Electric (kWh)"
+
+endchoice
+
+config ZB_REPORT_DST_SHORT_ADDR
+    hex "Report destination short address"
+    default 0x0000
+
+config ZB_REPORT_DST_ENDPOINT
+    int "Report destination endpoint"
+    default 1
+
+config ZB_REPORT_MIN_S
+    int "Default report min interval (s)"
+    default 10
+
+config ZB_REPORT_MAX_S
+    int "Default report max interval (s)"
+    default 300
+
+config ZB_REPORTABLE_CHANGE
+    int "Default reportable change (summation units)"
+    default 1
+
+config ZB_TX_POWER_DBM
+    int "Zigbee TX power after join (dBm)"
+    range -24 20
+    default 0
+    help
+        TX power used during normal operation after joining.
+        Joining/steering is always done at maximum TX power.
+
+config DEMAND_DECAY_TAU_S
+    int "Instantaneous demand decay time constant (s)"
+    default 60
+
+config DEMAND_IDLE_TIMEOUT_S
+    int "Instantaneous demand idle timeout (s)"
+    default 30
+    help
+        Force instantaneous demand to 0 if no pulses were received for this long. 0 disables.
+
+config DEMAND_RISE_TAU_S
+    int "Instantaneous demand rise time constant (s)"
+    default 10
+
+config ZB_BAT_REPORT_MIN_S
+    int "Battery report min interval (s)"
+    default 300
+
+config ZB_BAT_REPORT_MAX_S
+    int "Battery report max interval (s)"
+    default 21600
+
+config ZB_BAT_REPORTABLE_CHANGE
+    int "Battery reportable change (percent units)"
+    default 1
+    help
+        Minimum percentage change (in percent units, not half-percent) to trigger a battery report.
+
+config ZB_CHANNEL_MASK
+    hex "Zigbee channel mask"
+    default 0x07FFF800
+
+config ZB_SECONDARY_CHANNEL_MASK
+    hex "Zigbee secondary channel mask (0 to disable)"
+    default 0x0
+
+config ZB_BDB_SCAN_DURATION
+    int "BDB scan duration (beacon intervals)"
+    range 0 14
+    default 6
+    help
+        Scan duration exponent: ((1 << duration) + 1) * 15.36 ms per channel. Higher values scan longer.
+
+config ZB_KEEP_ALIVE_MS
+    int "Keep-alive interval (ms)"
+    default 60000
+    help
+        Poll interval for sleepy end device keep-alives. Lower values increase traffic and battery use.
+
+config ESP_ZB_TRACE_ENABLE
+    bool "Enable Zigbee trace logs"
+    depends on ZB_ENABLED
+    default y
+    help
+        Enable Zigbee stack trace output (verbose, binary + text). Increases log volume and power usage.
+
+config ZB_TRACE_LEVEL
+    int "Zigbee trace level (0=critical .. 4=verbose)"
+    depends on ESP_ZB_TRACE_ENABLE
+    range 0 4
+    default 4
+
+config ZB_TRACE_MASK
+    hex "Zigbee trace mask"
+    depends on ESP_ZB_TRACE_ENABLE
+    default 0xFFFFFFFF
+    help
+        Bitmask to select Zigbee trace subsystems. Use all bits set for maximum detail.
+
+config ZB_OTA_FILE_VERSION
+    hex "OTA file version (ZCL 32-bit)"
+    default 0x00000002
+    help
+        Monotonic version used for Zigbee OTA fileVersion. Increment for every release.
+
+config ZB_OTA_IMAGE_TYPE
+    hex "OTA image type"
+    default 0x0001
+    help
+        OTA image type identifier. Must match the value used when building OTA images.
+
+config ZB_MIN_JOIN_LQI
+    int "Minimum join LQI"
+    range 0 255
+    default 0
+    help
+        Reject joins with Link Quality below this threshold. 0 disables the filter.
+
+config ZB_STEER_MAX_RETRIES
+    int "Max steering attempts (0 = unlimited)"
+    range 0 255
+    default 12
+    help
+        Limits how many times firmware will start BDB Network Steering after failures.
+        Prevents endless pairing loops that drain battery and spam the network when permit-join is closed.
+
+config ZB_STEER_COOLDOWN_S
+    int "Steering cooldown after max attempts (seconds, 0 = stop until reboot/reset)"
+    range 0 86400
+    default 0
+    help
+        Behavior after reaching CONFIG_ZB_STEER_MAX_RETRIES:
+          - 0: stop automatic steering retries until reboot/factory reset.
+          - >0: wait this many seconds, reset retry counters and try again (burst retries).
+        Useful for mains-powered devices or when you want eventual recovery without manual action.
+
+config ZB_INSTALL_CODE_POLICY
+    bool "Require install code policy"
+    default n
+
+config SLEEPY_END_DEVICE
+    bool "Sleepy end device (RxOffWhenIdle)"
+    default y
+
+config APP_DEEPSLEEP_STORAGE_MODE
+    bool "Enable deep sleep storage mode support"
+    default n
+
+endmenu

@@ -85,7 +85,11 @@ Notes:
 - GPIO_1 is pulled up to 3.3V through a 300k resistor.
 - GPIO_1 is shunted to GND by a 100k resistor and a 100nF capacitor.
 - GPIO_10 is connected to GND through the reed switch.
-- The battery supplies the 3.3V and GND rails.
+- The battery supplies the 3.3V and GND rails. 
+ 
+Battery holder modification for parallel cells (to keep ~3.2 V instead of ~6.4 V):
+  - The bottom contact plate was cut so the cells are isolated; a small spacer (matchstick) and glue keep the cells from touching.
+  - Wires are soldered to each cell and routed to the top contacts to achieve parallel wiring.
 
 ## Zigbee
 

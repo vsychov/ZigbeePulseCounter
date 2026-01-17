@@ -2,7 +2,17 @@
 
 Firmware for ESP32H2: pulse counter (dry contact) that exposes Zigbee Simple Metering (0x0702) and Power Configuration (0x0001). Pulse settings are controlled through manufacturer-specific cluster 0xFD10. Meter type and measurement units are chosen at build time.
 
-Full code is generated with ChatGPT 5.2 Pro + Codex gpt-5.1-codex-max xhigh.
+**Full code is generated with ChatGPT 5.2 Pro + Codex gpt-5.1-codex-max xhigh.**
+
+## Background and low-power notes
+
+- Off-the-shelf pulse counters exist (for example https://shop.smarthome-europe.com/en/domotique/5499-lixee-zigbee-30-pulse-meter-water-gas-jeedom-and-home-assistant-compatible-3770014375155.html and https://www.amazon.de/dp/B0CGVB6LGC with a swappable pulse sensor), but this firmware targets a DIY build.
+- ESP32-C6 was tested first, but even in light sleep the board draws several mA, which is not acceptable for multi-month battery use (target was at least 6 months).
+- ESP32-H2 gives a much lower standby current. A Waveshare ESP32-H2 Mini (ESP32-H2FH4S) consumes about 700 uA in light sleep out of the box; removing the WS2812 LED and its driver drops that to roughly 234 uA. With the battery ADC circuitry attached the measured idle draw is about 300 uA, which works out to roughly 5 months from two 14500 LiFePO4 cells at 3.2 V.
+- Power measurements: [with WS2812 present](images/h2_ws2812_installed.jpg) vs [after removing it](images/h2_ws2812_removed.jpg).
+- If starting today, a Seeed XIAO MG24 (EFR32MG24) would be preferable: it can sleep with RAM retention at around 5 uA while keeping Zigbee state.
+- Reference implementation is published at https://github.com/vsychov/ZigbeePulseCounter (AI-assisted; expect rough edges).
+- Photos: [assembled device](images/device_assembled.jpg), [internals](images/device_internals.jpg).
 
 ## Quick start
 
@@ -38,6 +48,7 @@ PULSE_GPIO ----+----o/ o---- GND
 
 - Measured via `adc_oneshot`.
 - Voltage divider: `Rtop` and `Rbot` are set in Kconfig.
+- Hardware used: 2x14500 battery case (https://www.amazon.de/dp/B08JV9S4XY), resistors 100k and 300k (0.25 W), and a 104 (100 nF) ceramic capacitor on the ADC input.
 
 Formula:
 
@@ -45,11 +56,36 @@ Formula:
 Vbat = Vadc * (Rtop + Rbot) / Rbot
 ```
 
-### USB/VBUS detect (optional)
+Wiring reference (also shown in the internals photo):
 
-- `USB_DETECT_ENABLE=y`
-- `USB_DETECT_GPIO` and polarity are set in Kconfig.
-- With USB present, reports are sent more often and OTA has no limits (see main.c).
+```
+              +3.3V
+                |
+                |        ┌───────────────┐
+                |        │   BATTERY     │
+                |        └───────────────┘
+                |
+               [300k]
+                |
+                +-------- GPIO_1 --------+
+                |                        |
+              [100nF]                  [100k]
+                |                        |
+               GND                      GND
+                |
+                +-------- GPIO_10 -------+
+                |
+              [ REED SWITCH ]
+                |
+               GND
+```
+
+Notes:
+
+- GPIO_1 is pulled up to 3.3V through a 300k resistor.
+- GPIO_1 is shunted to GND by a 100k resistor and a 100nF capacitor.
+- GPIO_10 is connected to GND through the reed switch.
+- The battery supplies the 3.3V and GND rails.
 
 ## Zigbee
 

@@ -256,16 +256,8 @@ config ZB_STEER_COOLDOWN_S
           - >0: wait this many seconds, reset retry counters and try again (burst retries).
         Useful for mains-powered devices or when you want eventual recovery without manual action.
 
-config ZB_INSTALL_CODE_POLICY
-    bool "Require install code policy"
-    default n
-
 config SLEEPY_END_DEVICE
     bool "Sleepy end device (RxOffWhenIdle)"
     default y
-
-config APP_DEEPSLEEP_STORAGE_MODE
-    bool "Enable deep sleep storage mode support"
-    default n
 
 endmenu

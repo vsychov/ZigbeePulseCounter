@@ -1254,15 +1254,15 @@ static void app_zigbee_init(void)
     platform_config.host_config.host_connection_mode = ZB_HOST_CONNECTION_MODE_NONE;
     esp_zb_platform_config(&platform_config);
 
-    esp_zb_cfg_t zb_nwk_cfg = {0};
-    zb_nwk_cfg.esp_zb_role = ESP_ZB_DEVICE_TYPE_ED;
-#ifdef CONFIG_ZB_INSTALL_CODE_POLICY
-    zb_nwk_cfg.install_code_policy = true;
-#else
-    zb_nwk_cfg.install_code_policy = false;
-#endif
-    zb_nwk_cfg.nwk_cfg.zed_cfg.ed_timeout = ESP_ZB_ED_AGING_TIMEOUT_64MIN;
-    zb_nwk_cfg.nwk_cfg.zed_cfg.keep_alive = CONFIG_ZB_KEEP_ALIVE_MS;
+    esp_zb_cfg_t zb_nwk_cfg = {
+        .esp_zb_role = ESP_ZB_DEVICE_TYPE_ED,
+        .nwk_cfg = {
+            .zed_cfg = {
+                .ed_timeout = ESP_ZB_ED_AGING_TIMEOUT_64MIN,
+                .keep_alive = CONFIG_ZB_KEEP_ALIVE_MS,
+            },
+        },
+    };
     esp_zb_init(&zb_nwk_cfg);
 #if CONFIG_ESP_ZB_TRACE_ENABLE
     esp_zb_set_trace_level_mask((esp_zb_trace_level_cfg_t)CONFIG_ZB_TRACE_LEVEL, CONFIG_ZB_TRACE_MASK);

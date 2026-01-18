@@ -8,7 +8,7 @@
 
 ## Build & Development
 - Activate toolchain and build:  
-  `source $HOME/esp/esp-idf/export.sh && idf.py set-target esp32c6 && idf.py build`
+  `source $HOME/esp/esp-idf/export.sh && idf.py set-target esp32h2 && idf.py build`
 - Flash & monitor: `idf.py -p <PORT> flash monitor`
 - Clean (rarely needed): `idf.py fullclean`
 - Keep `sdkconfig.defaults` in sync with `sdkconfig` when changing Kconfig defaults.

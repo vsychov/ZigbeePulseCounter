@@ -9,10 +9,8 @@ Firmware for ESP32H2: pulse counter (dry contact) that exposes Zigbee Simple Met
 - Off-the-shelf pulse counters exist (for example https://shop.smarthome-europe.com/en/domotique/5499-lixee-zigbee-30-pulse-meter-water-gas-jeedom-and-home-assistant-compatible-3770014375155.html and https://www.amazon.de/dp/B0CGVB6LGC with a swappable pulse sensor), but this firmware targets a DIY build.
 - ESP32-C6 was tested first, but even in light sleep the board draws several mA, which is not acceptable for multi-month battery use (target was at least 6 months).
 - ESP32-H2 gives a much lower standby current. A Waveshare ESP32-H2 Mini (ESP32-H2FH4S) consumes about 700 uA in light sleep out of the box; removing the WS2812 LED and its driver drops that to roughly 234 uA. With the battery ADC circuitry attached the measured idle draw is about 300 uA, which works out to roughly 5 months from two 14500 LiFePO4 cells at 3.2 V.
-- Power measurements: [with WS2812 present](images/h2_ws2812_installed.jpg) vs [after removing it](images/h2_ws2812_removed.jpg).
 - If starting today, a Seeed XIAO MG24 (EFR32MG24) would be preferable: it can sleep with RAM retention at around 5 uA while keeping Zigbee state.
 - Reference implementation is published at https://github.com/vsychov/ZigbeePulseCounter (AI-assisted; expect rough edges).
-- Photos: [assembled device](images/device_assembled.jpg), [internals](images/device_internals.jpg).
 
 ## Quick start
 
@@ -37,75 +35,9 @@ Water variant (uses `sdkconfig.water` as defaults, keeps `sdkconfig` as the gene
 idf.py -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.water" set-target esp32h2 build flash monitor
 ```
 
-## Hardware
+## Device build guides
 
-### Dry contact (pulses)
-
-- Reed switch for Gas: https://www.tme.eu/de/details/mk65b/reed-relais/meder/mk06-5-b/
-- `PULSE_GPIO` (default GPIO9), input with pull-up.
-- Contact closes to GND.
-- Falling-edge interrupt, default debounce 50 ms.
-
-Example wiring:
-
-```
-PULSE_GPIO ----+----o/ o---- GND
-               |
-               +--[internal pull-up]
-```
-
-### Zigbee factory reset button
-
-- `FACTORY_RESET_BUTTON_GPIO`, active low.
-- Long press (8 s) performs Zigbee factory reset and reboots the device.
-- Can be set to a separate GPIO or disabled (`-1`).
-
-### Battery (ADC)
-
-- Measured via `adc_oneshot`.
-- Voltage divider: `Rtop` and `Rbot` are set in Kconfig.
-- Hardware used: 2x14500 battery case (https://www.amazon.de/dp/B08JV9S4XY), resistors 100k and 300k (0.25 W), and a 104 (100 nF) ceramic capacitor on the ADC input.
-
-Formula:
-
-```
-Vbat = Vadc * (Rtop + Rbot) / Rbot
-```
-
-Wiring reference (also shown in the internals photo):
-
-```
-              +3.3V
-                |
-                |        ┌───────────────┐
-                |        │   BATTERY     │
-                |        └───────────────┘
-                |
-               [300k]
-                |
-                +-------- GPIO_1 --------+
-                |                        |
-              [100nF]                  [100k]
-                |                        |
-               GND                      GND
-                |
-                +-------- GPIO_10 -------+
-                |
-              [ REED SWITCH ]
-                |
-               GND
-```
-
-Notes:
-
-- GPIO_1 is pulled up to 3.3V through a 300k resistor.
-- GPIO_1 is shunted to GND by a 100k resistor and a 100nF capacitor.
-- GPIO_10 is connected to GND through the reed switch.
-- The battery supplies the 3.3V and GND rails. 
- 
-Battery holder modification for parallel cells (to keep ~3.2 V instead of ~6.4 V):
-  - The bottom contact plate was cut so the cells are isolated; a small spacer (matchstick) and glue keep the cells from touching.
-  - Wires are soldered to each cell and routed to the top contacts to achieve parallel wiring.
+- Honeywell BK-G4Mt (reed pulse): `docs/honeywell_bk_g4mt.md`
 
 ## Zigbee
 

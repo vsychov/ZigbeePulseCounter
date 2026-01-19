@@ -24,13 +24,6 @@ config PULSE_MIN_WIDTH_MS
     help
         Optional minimum low time. 0 disables the check.
 
-config PULSE_GLITCH_FILTER_ENABLE
-    bool "Enable hardware GPIO glitch filter for pulse input"
-    default y
-    help
-        Enable the ESP32-H2 hardware flex glitch filter on the pulse GPIO.
-        This helps suppress very short bounce/noise spikes and reduces ISR storms / wakeups.
-
 config PULSE_GLITCH_FILTER_WINDOW_NS
     int "Pulse glitch filter window width (ns)"
     default 2000000

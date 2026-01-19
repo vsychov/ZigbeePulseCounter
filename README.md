@@ -21,6 +21,22 @@ idf.py set-target esp32c6
 idf.py build flash monitor
 ```
 
+### Multiple build configs
+
+You can keep separate `sdkconfig` files and build into different output folders. Example (mains-powered variant with warnings-only logging):
+
+```bash
+idf.py -B build-mains -DSDKCONFIG=sdkconfig.mains -DSDKCONFIG_DEFAULTS="sdkconfig.defaults" set-target esp32h2 build
+```
+
+`idf.py menuconfig` with these flags will write changes into `sdkconfig.mains` instead of the default.
+
+Water variant (uses `sdkconfig.water` as defaults, keeps `sdkconfig` as the generated output so the override file is not overwritten; outputs go to the default `build/`):
+
+```bash
+idf.py -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.water" set-target esp32h2 build flash monitor
+```
+
 ## Hardware
 
 ### Dry contact (pulses)
@@ -99,9 +115,9 @@ Battery holder modification for parallel cells (to keep ~3.2 V instead of ~6.4 V
 - OTA: Zigbee OTA Upgrade (0x0019).
 - Custom cluster: 0xFD10 (manufacturer code 0x1234) - only the counter reset command (write-only attr 0x0008).
 - Zigbee Model ID comes from `CONFIG_ZB_MODEL_IDENTIFIER` (Kconfig). Convenience strings:
-  - `ESP32C6-PulseMeter-Gas` (m3, m3/h)
-  - `ESP32C6-PulseMeter-Water` (m3, m3/h)
-  - `ESP32C6-PulseMeter-Electric` (kWh, kW)
+  - `ESP32-PulseMeter-Gas` (m3, m3/h)
+  - `ESP32-PulseMeter-Water` (m3, m3/h)
+  - `ESP32-PulseMeter-Electric` (kWh, kW)
 
 ## Configuration (Kconfig)
 

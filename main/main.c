@@ -46,6 +46,9 @@
 #include "config_cluster.h"
 #include "app_config.h"
 
+#ifndef CONFIG_BATTERY_ADC_ENABLE
+#define CONFIG_BATTERY_ADC_ENABLE 0
+#endif
 #ifndef CONFIG_ZB_STEER_MAX_RETRIES
 #define CONFIG_ZB_STEER_MAX_RETRIES 0
 #endif
@@ -124,14 +127,16 @@ static int64_t s_last_demand_check_us;
 static bool s_total_dirty;
 static volatile bool s_factory_reset_requested;
 static uint32_t s_steer_total_attempts;
-static int64_t s_last_can_sleep_skip_log_us;
 static int64_t s_no_sleep_until_us;
 static button_handle_t s_reset_button;
+#if CONFIG_SLEEPY_END_DEVICE
+static int64_t s_last_can_sleep_skip_log_us;
+static void app_log_wakeup_info(int64_t slept_ms);
+#endif
 
 static void app_zigbee_update_metering_attrs_static(void);
 static void app_zigbee_update_metering_attrs_dynamic(void);
 static void app_log_power_status(const power_status_t *status, const char *context);
-static void app_log_wakeup_info(int64_t slept_ms);
 static void app_factory_reset_press_cb(void *btn, void *data);
 static void app_factory_reset_hold_cb(void *btn, void *data);
 
@@ -215,6 +220,7 @@ static esp_zb_int24_t app_to_int24(int32_t value)
     return out;
 }
 
+#if CONFIG_BATTERY_ADC_ENABLE
 static void app_event_send(const app_event_t *evt)
 {
     if (s_app_event_queue) {
@@ -223,6 +229,7 @@ static void app_event_send(const app_event_t *evt)
         }
     }
 }
+#endif
 
 static esp_err_t app_ota_element_slice(uint32_t total_size, const void *payload, uint16_t payload_size,
                                        const void **out_data, uint16_t *out_len)
@@ -604,6 +611,7 @@ static inline bool app_gpio_active_low(gpio_num_t gpio)
 /* GPIO wakeup is level-triggered; skip light sleep if any wake pin is already held low
  * to avoid immediate wake loops.
  */
+#if CONFIG_SLEEPY_END_DEVICE
 static bool app_any_wakeup_pin_asserted(const char **out_reason)
 {
     const char *reason = NULL;
@@ -621,6 +629,7 @@ static bool app_any_wakeup_pin_asserted(const char **out_reason)
     }
     return reason != NULL;
 }
+#endif
 
 static void app_steer_retry_timer_cb(void *arg)
 {
@@ -768,6 +777,7 @@ static void app_handle_pending_pulses(void)
     s_total_dirty = true;
 }
 
+#if CONFIG_BATTERY_ADC_ENABLE
 static void app_power_status_cb(const power_status_t *status, void *ctx)
 {
     (void)ctx;
@@ -780,6 +790,7 @@ static void app_power_status_cb(const power_status_t *status, void *ctx)
     }
     app_event_send(&evt);
 }
+#endif
 
 static void app_zigbee_update_metering_attrs_static(void)
 {
@@ -860,9 +871,23 @@ static void app_zigbee_update_metering_attrs_dynamic(void)
 
 static void app_zigbee_update_power_attrs(const power_status_t *status)
 {
+    uint8_t power_source = CONFIG_BATTERY_ADC_ENABLE ? ESP_ZB_ZCL_BASIC_POWER_SOURCE_BATTERY
+                                                     : ESP_ZB_ZCL_BASIC_POWER_SOURCE_DC_SOURCE;
+
+    esp_zb_set_node_descriptor_power_source(!CONFIG_BATTERY_ADC_ENABLE);
+    esp_zb_zcl_set_attribute_val(APP_ZB_ENDPOINT,
+                                 ESP_ZB_ZCL_CLUSTER_ID_BASIC,
+                                 ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+                                 ESP_ZB_ZCL_ATTR_BASIC_POWER_SOURCE_ID,
+                                 &power_source, false);
+
+#if CONFIG_BATTERY_ADC_ENABLE
+    if (!status) {
+        return;
+    }
+
     uint8_t voltage = status->battery_voltage_attr;
     uint8_t percent = status->battery_percent_attr;
-    uint8_t power_source = ESP_ZB_ZCL_BASIC_POWER_SOURCE_BATTERY;
 
     if (voltage != 0xFF) {
         if (s_last_battery_voltage == 0xFF || voltage != s_last_battery_voltage) {
@@ -874,13 +899,6 @@ static void app_zigbee_update_power_attrs(const power_status_t *status)
             s_last_battery_voltage = voltage;
         }
     }
-
-    esp_zb_set_node_descriptor_power_source(false);
-    esp_zb_zcl_set_attribute_val(APP_ZB_ENDPOINT,
-                                 ESP_ZB_ZCL_CLUSTER_ID_BASIC,
-                                 ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-                                 ESP_ZB_ZCL_ATTR_BASIC_POWER_SOURCE_ID,
-                                 &power_source, false);
 
     if (percent != 0xFF) {
         if (s_last_battery_percent == 0xFF ||
@@ -894,6 +912,9 @@ static void app_zigbee_update_power_attrs(const power_status_t *status)
             s_last_battery_percent = percent;
         }
     }
+#else
+    (void)status;
+#endif
 }
 
 static void app_log_power_status(const power_status_t *status, const char *context)
@@ -909,6 +930,7 @@ static void app_log_power_status(const power_status_t *status, const char *conte
              (unsigned)status->battery_percent_attr);
 }
 
+#if CONFIG_SLEEPY_END_DEVICE
 static void app_log_wakeup_info(int64_t slept_ms)
 {
     esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
@@ -917,6 +939,7 @@ static void app_log_wakeup_info(int64_t slept_ms)
     ESP_LOGI(TAG, "Wakeup: slept~%lld ms cause=%d bitmap=0x%" PRIx64,
              (long long)slept_ms, (int)cause, (uint64_t)bitmap);
 }
+#endif
 
 static void app_update_sleep_policy(void)
 {
@@ -1072,6 +1095,7 @@ static void app_zigbee_configure_reporting(void)
     metering_info.u.send_info.def_min_interval = min_interval;
     metering_info.u.send_info.def_max_interval = max_interval;
 
+#if CONFIG_BATTERY_ADC_ENABLE
     esp_zb_zcl_reporting_info_t battery_info = {0};
     battery_info.direction = ESP_ZB_ZCL_REPORT_DIRECTION_SEND;
     battery_info.ep = APP_ZB_ENDPOINT;
@@ -1095,6 +1119,7 @@ static void app_zigbee_configure_reporting(void)
     battery_voltage_info.u.send_info.delta.u8 = 0; /* report on min/max */
     battery_voltage_info.u.send_info.def_min_interval = CONFIG_ZB_BAT_REPORT_MIN_S;
     battery_voltage_info.u.send_info.def_max_interval = CONFIG_ZB_BAT_REPORT_MAX_S;
+#endif
 
     esp_zb_zcl_reporting_info_t demand_info = {0};
     demand_info.direction = ESP_ZB_ZCL_REPORT_DIRECTION_SEND;
@@ -1109,8 +1134,10 @@ static void app_zigbee_configure_reporting(void)
     demand_info.u.send_info.def_max_interval = max_interval;
 
     app_configure_attr_reporting(&metering_info, "metering");
+#if CONFIG_BATTERY_ADC_ENABLE
     app_configure_attr_reporting(&battery_info, "battery");
     app_configure_attr_reporting(&battery_voltage_info, "battery_voltage");
+#endif
     app_configure_attr_reporting(&demand_info, "demand");
 }
 
@@ -1135,7 +1162,9 @@ static void app_on_joined(const char *reason)
     app_zigbee_update_power_attrs(&joined_power);
     app_zigbee_configure_reporting();
     app_bind_cluster(ESP_ZB_ZCL_CLUSTER_ID_METERING, "seMetering");
+#if CONFIG_BATTERY_ADC_ENABLE
     app_bind_cluster(ESP_ZB_ZCL_CLUSTER_ID_POWER_CONFIG, "genPowerCfg");
+#endif
 
     app_log_network_info("Joined info");
 }
@@ -1284,9 +1313,11 @@ static void app_zigbee_init(void)
 
     esp_zb_cluster_list_t *cluster_list = esp_zb_zcl_cluster_list_create();
 
+    uint8_t basic_power_source = CONFIG_BATTERY_ADC_ENABLE ? ESP_ZB_ZCL_BASIC_POWER_SOURCE_BATTERY
+                                                           : ESP_ZB_ZCL_BASIC_POWER_SOURCE_DC_SOURCE;
     esp_zb_basic_cluster_cfg_t basic_cfg = {
         .zcl_version = ESP_ZB_ZCL_BASIC_ZCL_VERSION_DEFAULT_VALUE,
-        .power_source = ESP_ZB_ZCL_BASIC_POWER_SOURCE_BATTERY,
+        .power_source = basic_power_source,
     };
     esp_zb_attribute_list_t *basic_attr_list = esp_zb_basic_cluster_create(&basic_cfg);
     esp_zb_cluster_add_attr(basic_attr_list, ESP_ZB_ZCL_CLUSTER_ID_BASIC,
@@ -1587,10 +1618,14 @@ void app_main(void)
     };
     esp_timer_create(&retry_timer_args, &s_steer_retry_timer);
 
+#if CONFIG_BATTERY_ADC_ENABLE
     esp_err_t mon_err = power_start_monitor(APP_BATTERY_TASK_PERIOD_BATT_MS, app_power_status_cb, NULL);
     if (mon_err != ESP_OK) {
         ESP_LOGW(TAG, "power_start_monitor failed: %s", esp_err_to_name(mon_err));
     }
+#else
+    ESP_LOGI(TAG, "Battery monitoring disabled (CONFIG_BATTERY_ADC_ENABLE=n)");
+#endif
 
     xTaskCreate(zigbee_task, "zigbee_task", 6144, NULL, 5, &s_zigbee_task_handle);
     pulse_set_consumer_task(s_zigbee_task_handle);

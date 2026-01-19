@@ -11,9 +11,12 @@
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
 
-static const char *TAG = "power";
+#ifndef CONFIG_BATTERY_ADC_ENABLE
+#define CONFIG_BATTERY_ADC_ENABLE 0
+#endif
 
 #if CONFIG_BATTERY_ADC_ENABLE
+static const char *TAG = "power";
 static adc_oneshot_unit_handle_t s_adc_handle;
 static adc_cali_handle_t s_cali_handle;
 static bool s_cali_enabled;
@@ -21,12 +24,6 @@ static bool s_adc_ready;
 static bool s_warned_no_cali;
 static bool s_have_last_good;
 static uint16_t s_last_battery_mv;
-#endif
-
-static TaskHandle_t s_power_task;
-static power_status_cb_t s_power_cb;
-static void *s_power_cb_ctx;
-static uint32_t s_power_period_ms;
 
 /* ADC sampling strategy:
  * - High-value dividers mean high source impedance: first samples can be wrong.
@@ -127,6 +124,12 @@ static uint8_t calc_battery_percent(uint16_t battery_mv)
 
     return (uint8_t)(percent * 2);
 }
+#endif
+
+static TaskHandle_t s_power_task;
+static power_status_cb_t s_power_cb;
+static void *s_power_cb_ctx;
+static uint32_t s_power_period_ms;
 
 void power_init(void)
 {

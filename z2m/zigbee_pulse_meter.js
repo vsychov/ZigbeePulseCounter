@@ -29,6 +29,20 @@ const ATTR_TYPE = {
   reset_counter: 0x10, // boolean
 };
 
+const hasBatteryPower = (device) => {
+  if (typeof device?.powerSource === 'number') {
+    return device.powerSource === 0x03; // Battery
+  }
+
+  const src = (device?.powerSource || '').toString().toLowerCase();
+  if (!src) return false;
+  if (src.includes('battery')) return true;
+  if (src.includes('dc')) return false;
+  if (src.includes('mains')) return false;
+  if (src.includes('ac')) return false;
+  return false;
+};
+
 const tzLocal = {
   reset_action: {
     key: ['reset_counter'],
@@ -74,9 +88,9 @@ const applyHaMeta = (expose, deviceClass, stateClass) => {
 };
 
 const DEVICE_VARIANTS = [
-  {id: 'ESP32C6-PulseMeter-Gas', energyUnit: 'm³', powerUnit: 'm³/h', desc: 'Zigbee gas pulse meter', type: 'gas'},
-  {id: 'ESP32C6-PulseMeter-Water', energyUnit: 'm³', powerUnit: 'm³/h', desc: 'Zigbee water pulse meter', type: 'water'},
-  {id: 'ESP32C6-PulseMeter-Electric', energyUnit: 'kWh', powerUnit: 'kW', desc: 'Zigbee electric pulse meter', type: 'electric'},
+  {id: 'ESP32-PulseMeter-Gas', energyUnit: 'm³', powerUnit: 'm³/h', desc: 'Zigbee gas pulse meter', type: 'gas'},
+  {id: 'ESP32-PulseMeter-Water', energyUnit: 'm³', powerUnit: 'm³/h', desc: 'Zigbee water pulse meter', type: 'water'},
+  {id: 'ESP32-PulseMeter-Electric', energyUnit: 'kWh', powerUnit: 'kW', desc: 'Zigbee electric pulse meter', type: 'electric'},
 ];
 
 const logWarn = (meta, message, details) => {
@@ -105,25 +119,35 @@ const safeRound = (value, precision, meta) => {
   }
 };
 
-const buildExposes = (variant) => {
+const buildExposes = (variant, batteryCapable = true) => {
   const reset = exposes.enum('reset_counter', ea.SET, ['RESET'])
       .withDescription('Reset counter (write-only)');
 
   if (variant.type === 'electric') {
     const energy = e.energy().withAccess(ea.STATE).withValueStep(0.001);
     const power = e.power().withAccess(ea.STATE).withValueStep(0.001);
-    const battVoltage = exposes.numeric('battery_voltage', ea.STATE)
-        .withProperty('voltage')
-        .withDescription('Battery voltage')
-        .withUnit('V')
-        .withValueMin(0)
-        .withValueStep(0.1);
-    applyHaMeta(battVoltage, 'voltage', 'measurement');
+    const exposeList = [energy, power];
 
-    if (typeof energy.withUnit === 'function') energy.withUnit(variant.energyUnit);
-    if (typeof power.withUnit === 'function') power.withUnit(variant.powerUnit);
+    if (typeof energy.withUnit === 'function') {
+      energy.withUnit(variant.energyUnit);
+    }
+    if (typeof power.withUnit === 'function') {
+      power.withUnit(variant.powerUnit);
+    }
 
-    return [energy, power, e.battery(), battVoltage, reset];
+    if (batteryCapable) {
+      const battVoltage = exposes.numeric('battery_voltage', ea.STATE)
+          .withProperty('voltage')
+          .withDescription('Battery voltage')
+          .withUnit('V')
+          .withValueMin(0)
+          .withValueStep(0.1);
+      applyHaMeta(battVoltage, 'voltage', 'measurement');
+      exposeList.push(e.battery(), battVoltage);
+    }
+
+    exposeList.push(reset);
+    return exposeList;
   }
 
   const isGas = variant.type === 'gas';
@@ -146,18 +170,24 @@ const buildExposes = (variant) => {
 
   applyHaMeta(flow, 'volume_flow_rate', 'measurement');
 
-  const battVoltage = exposes.numeric('battery_voltage', ea.STATE)
-      .withProperty('voltage')
-      .withDescription('Battery voltage')
-      .withUnit('V')
-      .withValueMin(0)
-      .withValueStep(0.1);
-  applyHaMeta(battVoltage, 'voltage', 'measurement');
+  const exposeList = [total, flow];
 
-  return [total, flow, e.battery(), battVoltage, reset];
+  if (batteryCapable) {
+    const battVoltage = exposes.numeric('battery_voltage', ea.STATE)
+        .withProperty('voltage')
+        .withDescription('Battery voltage')
+        .withUnit('V')
+        .withValueMin(0)
+        .withValueStep(0.1);
+    applyHaMeta(battVoltage, 'voltage', 'measurement');
+    exposeList.push(e.battery(), battVoltage);
+  }
+
+  exposeList.push(reset);
+  return exposeList;
 };
 
-const FLOW_MODELS = new Set(['ESP32C6-PulseMeter-Gas', 'ESP32C6-PulseMeter-Water']);
+const FLOW_MODELS = new Set(['ESP32-PulseMeter-Gas', 'ESP32-PulseMeter-Water']);
 
 const fzLocal = {
   metering_round: {
@@ -206,24 +236,31 @@ module.exports = DEVICE_VARIANTS.map((variant) => ({
   toZigbee: [tzLocal.reset_action],
 
   meta: {
-    configureKey: 14,
+    configureKey: 15,
     manufacturerCode: 0x1234,
   },
 
-  configure: async (device, coordinatorEndpoint) => {
+  configure: async (device, coordinatorEndpoint, logger) => {
     const endpoint = device.getEndpoint(1);
+    const batteryCapable = hasBatteryPower(device);
+    const bindClusters = ['seMetering'];
+    if (batteryCapable) bindClusters.unshift('genPowerCfg');
 
-    await reporting.bind(endpoint, coordinatorEndpoint, ['genPowerCfg', 'seMetering']);
+    await reporting.bind(endpoint, coordinatorEndpoint, bindClusters);
 
     await reporting.instantaneousDemand(endpoint, {min: 10, max: 300, change: 0});
     await reporting.currentSummDelivered(endpoint, {min: 10, max: 300, change: 0});
-    await reporting.batteryPercentageRemaining(endpoint, {min: 10, max: 21600, change: 0});
-    await reporting.batteryVoltage(endpoint, {min: 10, max: 21600, change: 0});
+    if (batteryCapable) {
+      await reporting.batteryPercentageRemaining(endpoint, {min: 10, max: 21600, change: 0});
+      await reporting.batteryVoltage(endpoint, {min: 10, max: 21600, change: 0});
+    } else if (logger?.info) {
+      logger.info(`Skipping battery reporting (powerSource=${device?.powerSource || 'unknown'})`);
+    }
 
     await readMeteringScale(endpoint);
     await readMeteringValues(endpoint);
   },
 
-  exposes: buildExposes(variant),
+  exposes: (device) => buildExposes(variant, hasBatteryPower(device)),
   ota: true,
 }));

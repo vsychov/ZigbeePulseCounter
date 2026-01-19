@@ -41,4 +41,4 @@
 
 ## Security & Config Notes
 - Manufacturer code: `0x1234`; custom cluster: `0xFD10`; device ID default `0x7777`.
-- Model identifier set via `CONFIG_ZB_MODEL_IDENTIFIER` (e.g., `ESP32C6-PulseMeter-Gas/Water/Electric`) to match Z2M converter.
+- Model identifier set via `CONFIG_ZB_MODEL_IDENTIFIER` (e.g., `ESP32-PulseMeter-Gas/Water/Electric`) to match Z2M converter.
